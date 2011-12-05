@@ -1,0 +1,161 @@
+<?php
+
+class MaintenanceMode extends WireData implements Module, ConfigurableModule {
+
+	/**
+	 * Basic information about module
+	 */
+	public static function getModuleInfo() {
+		return array(
+			'title' => 'Maintenance Mode',
+			'summary' => 'Allows you to put your site into maintenance mode so that users who are not logged in are taken to the login screen and a message is displayed accordingly.',
+			'href' => 'http://processwire.com/talk/index.php/topic,431.0.html',
+			'version' => 104,
+			'permanent' => false,
+			'autoload' => true,
+			'singular' => true,
+		);
+	}
+
+	/**
+	 * Default configuration for module
+	 *
+	 * This is based on Ryan's examples [used also in @apeisa's AdminBar, for instance]
+	 */
+	static public function getDefaultData() {
+		return array(
+			'inMaintenance' => 0,
+			'showPage' => 0
+		);
+	}
+
+	/**
+	 * Populate the default config data
+	 *
+	 */
+	public function __construct() {
+	   foreach(self::getDefaultData() as $key => $value) {
+		   $this->$key = $value;
+	   }
+	}
+
+	/**
+	 * Initialize the module and setup hooks
+	 */
+	public function init() {
+		// hook before the page has been loaded to see if we're in maintenance mode and redirect if neccessary
+		$this->addHookBefore('Page::render', $this, 'maintenanceCheck');
+		$this->addHookAfter('Page::render', $this, 'maintenanceMessage');
+	}
+	static public function getModuleConfigInputfields(array $data) {
+
+		// this is a container for fields, basically like a fieldset
+		$fields = new InputfieldWrapper();
+
+		// since this is a static function, we can't use $this->modules, so get them from the global wire() function
+		$modules = wire('modules');
+
+		// Populate $data with the default config, because if they've never configured this module before,
+		// the $data provided to this function will be empty. Or, if you add new config items in a new version,
+		// $data won't have it until they configure it. Best bet is to merge defaults with custom, where
+		// custom overwrites the defaults (array_merge).
+		
+		$data = array_merge(self::getDefaultData(), $data);
+
+		// Populate the $fieldsModel with data for each checkbox
+		$fieldsModel = array(
+			'inMaintenance' => array(
+					'label'=>"Put site into maintenance mode?",
+					'desc'=>"Will redirect any visitors who are not logged in to your site to the login page with an appropriate message.",
+					'type'=>"_createCheckbox"),
+			'showPage' => array(
+					'label'=>"Redirect to another page instead of the login page?",
+					'desc'=>"Alternatively shows a specific page instead of the login page - for added security.",
+					'type'=>"_createInputfieldPageListSelect")
+		);
+		// Now use $data and $fieldsModel loop to create all checkboxes
+		foreach ($fieldsModel as $f=>$fM){
+			$fields->add(
+				self::$fM['type']($f, $fM['label'], $data[$f], $fM['desc'])
+			);
+		}
+		return $fields;
+	}
+
+	/**
+	 * Checks if we're in maintenance mode and performs any neccessary redirects
+	 *
+	 * @param HookEvent $event
+	 */
+	public function maintenanceCheck(HookEvent $event) {
+		$page = $event->object;
+		$user = $this->fuel('user');
+		// If we're in maintenance mode
+		if ($this->inMaintenance) {
+			// Check to make sure we're not logged in, or if we are that we're not a superuser and then redirect to the login page
+			if (!$user->isLoggedin() || !$user->isSuperuser()) {
+				$this->message("This site is currently in maintenance mode. If you are a site administrator, you may log in below and view the site as normal.");
+				// If we have a specific page to redirect to then do it
+				if ($this->showPage && ($page->id != $this->showPage) && ($page->name != 'login')) {
+					$this->session->redirect($this->fuel('pages')->get($this->showPage)->url, false);
+				// Else redirect to the login page
+				} elseif (!$this->showPage && $page->name != 'login') {
+					$this->session->redirect($this->config->urls->admin, false);
+				}
+			}
+		// Else if we're not in maintenance mode and we're not an administrator, make sure the maintenance page redirects to the homepage
+		} elseif (!$this->inMaintenance && $this->showPage && ($page->id == $this->showPage) && !$user->isSuperuser()) {
+			$this->session->redirect($this->config->urls->root, false);
+		}
+	}
+
+	public function maintenanceMessage(HookEvent $event){ 
+		if ($this->inMaintenance) {
+			$user = $this->fuel('user');
+			if ($user->isLoggedin() && $user->isSuperuser()) {
+				$out = $event->return;
+				// Check to see if the edit link is visible (it is in the default template at least when viewing pages in the front-end). If so, move message to the right of it.
+				$indent = strpos($out, 'editpage') !== false ? '60px;' : '0';
+				$code = "<div style='font-family: Arial; font-size: 12px; padding: 5px 6px; line-height: 14px; margin-left: {$indent}; background-color: #87A71B; color: #fff; float: left;'>Site is in maintenance mode</div>";
+				$out = preg_replace('/(<body[^>]*>)/i', '$1' . $code, $out); 
+				$event->return = $out;   
+			}
+		}
+	}
+
+	/**
+	 * @param string $chName – name of the field this ties to
+	 * @param string $chTitle – title of the field
+	 * @param boolean $chChecked – is the checkbox checked? (default: true)
+	 * @param string $chDesc – description (KISS) (default: empty)
+	 * @return InputfieldCheckbox – created checkbox
+	 */
+	private static function _createCheckbox($chName, $chTitle, $chChecked=true, $chDesc=''){
+		$field = wire('modules')->get("InputfieldCheckbox");
+		$field->name = $chName;
+		$field->label = $chTitle;
+		$field->description = $chDesc;
+		$field->value = 1;
+		$field->attr('checked', $chChecked ? 'checked':'');
+		return $field;
+	}
+
+	/**
+	 * @param string $ipName – name of the field this ties to
+	 * @param string $ipTitle – title of the field
+	 * @param boolean $ipValue – the value of the field (default: empty, i.e. no page selected)
+	 * @param string $ipDesc – description (KISS) (default: empty)
+	 * @return InputfieldPageListSelect – created page list select
+	 */	
+	private static function _createInputfieldPageListSelect($ipName, $ipTitle, $ipValue='', $ipDesc=''){
+		$field =  wire('modules')->get("InputfieldPageListSelect"); 
+		$field->name = $ipName;
+		$field->label = $ipTitle;
+		$field->required = false;
+		$field->description = $ipDesc;
+		$field->attr('value', $ipValue);
+		$field->set('unselectLabel', 'Unselect'); 
+		if($ipValue == 0) $field->collapsed = Inputfield::collapsedYes;
+		return $field;
+	}
+}
