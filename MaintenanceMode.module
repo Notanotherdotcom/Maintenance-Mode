@@ -102,7 +102,7 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 				$this->message("This site is currently in maintenance mode. If you are a site administrator, you may log in below and view the site as normal.");
 
 				// If we have a different URL to redirect to then do a temp. redirect to that URL...
-				if( $this->showURL ) {
+				if( $this->showURL && ($page->name != 'login') ) {
 					$this->session->redirect($this->showURL, false);
 
 				// If we have a specific page to redirect to then do it
