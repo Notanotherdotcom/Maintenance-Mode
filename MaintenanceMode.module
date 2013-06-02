@@ -10,7 +10,7 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 			'title' => 'Maintenance Mode',
 			'summary' => 'Allows you to put your site into maintenance mode so that users who are not logged in are taken to the login screen and a message is displayed accordingly.',
 			'href' => 'http://processwire.com/talk/index.php/topic,431.0.html',
-			'version' => 105,
+			'version' => 106,
 			'permanent' => false,
 			'autoload' => true,
 			'singular' => true,
@@ -27,6 +27,7 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 			'inMaintenance' => 0,
 			'showPage' => 0,
 			'showURL' => '',
+			'bypassRoles' => ''
 		);
 	}
 
@@ -69,6 +70,10 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 					'label'=>"Put site into maintenance mode?",
 					'desc'=>"Will redirect any visitors who are not logged in to your site to the login page with an appropriate message.",
 					'type'=>"_createCheckbox"),
+			'bypassRoles' => array(
+					'label'=>"Allow specific roles to bypass maintenance mode",
+					'desc'=>"Optionally allow certain user roles eg. site editors/staff to see the side whilst in maintenance mode (superuser will always be allowed regardless of this setting)",
+					'type'=>"_createInputfieldASMSelect"),
 			'showPage' => array(
 					'label'=>"Redirect to another page instead of the login page?",
 					'desc'=>"Alternatively shows a specific page instead of the login page - for added security.",
@@ -76,7 +81,7 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 			'showURL' => array(
 					'label'=>"Redirect to another URL?",
 					'desc'=>"Allows you to send visitors who are not logged in to another URL including other sites.",
-					'type'=>"_createInputfieldURL"),
+					'type'=>"_createInputfieldURL")
 		);
 		// Now use $data and $fieldsModel loop to create all checkboxes
 		foreach ($fieldsModel as $f=>$fM){
@@ -97,8 +102,8 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 		$user = $this->fuel('user');
 		// If we're in maintenance mode
 		if ($this->inMaintenance) {
-			// Check to make sure we're not logged in, or if we are that we're not a superuser and then redirect to the login page
-			if (!$user->isLoggedin() || !$user->isSuperuser()) {
+			// Check to make sure we're not a superuser and our role isn't in the list of allowed roles to access the site in maintenance mode
+			if (!$user->isSuperuser() && !array_intersect(explode('|', $user->roles), $this->bypassRoles)) {
 				$this->message("This site is currently in maintenance mode. If you are a site administrator, you may log in below and view the site as normal.");
 
 				// If we have a different URL to redirect to then do a temp. redirect to that URL...
@@ -181,6 +186,22 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 		$field->notes = "Example: http://another.place.com/index.html";
 		if(!(int) ini_get('allow_url_fopen')) $field->error("Your PHP doesn't have 'allow_url_fopen' enabled, so the redirect to external URL option won't work.");
 		if( '' === $value ) $field->collapsed = Inputfield::collapsedYes;
+		return $field;
+	}
+	
+	private static function _createInputfieldASMSelect($aName, $aTitle, $aValue, $aDesc='', $aOptions='', $aNotes='', $aWidth=100) {
+		if(!isset($aValue) || !is_array($aValue)) $aValue = ''; 
+		$modules = Wire::getFuel('modules');
+		$field = $modules->get("InputfieldAsmSelect");
+		$field->attr('name', $aName);
+		foreach(wire('user')->roles as $role) {
+			$field->addOption($role->id, $role->name); 
+		}
+		$field->attr('value', $aValue); 
+		$field->label = $aTitle;
+		$field->description = $aDesc;
+		$field->columnWidth = $aWidth;
+		if(empty($aValue)) $field->collapsed = Inputfield::collapsedYes;
 		return $field;
 	}
 }
