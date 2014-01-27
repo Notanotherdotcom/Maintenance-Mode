@@ -194,7 +194,7 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 		$modules = Wire::getFuel('modules');
 		$field = $modules->get("InputfieldAsmSelect");
 		$field->attr('name', $aName);
-		foreach(wire('user')->roles as $role) {
+		foreach(wire('roles') as $role) {
 			$field->addOption($role->id, $role->name); 
 		}
 		$field->attr('value', $aValue); 
