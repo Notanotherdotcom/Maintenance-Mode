@@ -132,7 +132,7 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 				$out = $event->return;
 				// Check to see if the edit link is visible (it is in the default template at least when viewing pages in the front-end). If so, move message to the right of it.
 				$indent = strpos($out, 'editpage') !== false ? '60px;' : '0';
-				$code = "<div style='font-family: Arial; font-size: 12px; padding: 5px 6px; line-height: 14px; margin-left: {$indent}; background-color: #87A71B; color: #fff; float: left;'>Site is in maintenance mode</div>";
+				$code = "<div style='font-family: Arial; font-size: 12px; padding: 5px 6px; line-height: 14px; margin-left: {$indent}; background-color: #87A71B; color: #fff; z-index:9999; position: fixed; text-align: center;'>Site is in maintenance mode</div>";
 				$out = preg_replace('/(<body[^>]*>)/i', '$1' . $code, $out); 
 				$event->return = $out;   
 			}
@@ -194,7 +194,7 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 		$modules = Wire::getFuel('modules');
 		$field = $modules->get("InputfieldAsmSelect");
 		$field->attr('name', $aName);
-		foreach(wire('user')->roles as $role) {
+		foreach(wire('roles') as $role) {
 			$field->addOption($role->id, $role->name); 
 		}
 		$field->attr('value', $aValue); 
