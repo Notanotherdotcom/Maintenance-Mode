@@ -10,7 +10,7 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 			'title' => 'Maintenance Mode',
 			'summary' => 'Allows you to put your site into maintenance mode so that users who are not logged in are taken to the login screen and a message is displayed accordingly.',
 			'href' => 'http://processwire.com/talk/index.php/topic,431.0.html',
-			'version' => 106,
+			'version' => 107,
 			'permanent' => false,
 			'autoload' => true,
 			'singular' => true,
@@ -27,7 +27,8 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 			'inMaintenance' => 0,
 			'showPage' => 0,
 			'showURL' => '',
-			'bypassRoles' => ''
+			'bypassRoles' => '',
+			'allowPages' => 0
 		);
 	}
 
@@ -81,7 +82,11 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 			'showURL' => array(
 					'label'=>"Redirect to another URL?",
 					'desc'=>"Allows you to send visitors who are not logged in to another URL including other sites.",
-					'type'=>"_createInputfieldURL")
+					'type'=>"_createInputfieldURL"),
+			'allowPages' => array(
+					'label'=>"Allowed Pages",
+					'desc'=>"These pages will allways be accessible in maintenance mode",
+					'type'=>"_createInputfieldPageListSelectMultiple")
 		);
 		// Now use $data and $fieldsModel loop to create all checkboxes
 		foreach ($fieldsModel as $f=>$fM){
@@ -106,17 +111,22 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 			if (!$user->isSuperuser() && !array_intersect(explode('|', $user->roles), $this->bypassRoles)) {
 				$this->message("This site is currently in maintenance mode. If you are a site administrator, you may log in below and view the site as normal.");
 
-				// If we have a different URL to redirect to then do a temp. redirect to that URL...
-				if( $this->showURL && ($page->name != 'login') ) {
-					$this->session->redirect($this->showURL, false);
+				// Redirect only if current page is not in array of allowed pages
+				if(!in_array($page->id,$this->allowPages)) {
+					
+					// If we have a different URL to redirect to then do a temp. redirect to that URL...
+					if( $this->showURL && ($page->name != 'login') ) {
+						$this->session->redirect($this->showURL, false);
+	
+					// If we have a specific page to redirect to then do it
+					} elseif ($this->showPage && ($page->id != $this->showPage) && ($page->name != 'login')) {
+						$this->session->redirect($this->fuel('pages')->get($this->showPage)->url, false);
+	
+					// Else redirect to the login page
+					} elseif (!$this->showPage && $page->name != 'login') {
+						$this->session->redirect($this->config->urls->admin, false);
+					}
 
-				// If we have a specific page to redirect to then do it
-				} elseif ($this->showPage && ($page->id != $this->showPage) && ($page->name != 'login')) {
-					$this->session->redirect($this->fuel('pages')->get($this->showPage)->url, false);
-
-				// Else redirect to the login page
-				} elseif (!$this->showPage && $page->name != 'login') {
-					$this->session->redirect($this->config->urls->admin, false);
 				}
 			}
 		// Else if we're not in maintenance mode and we're not an administrator, make sure the maintenance page redirects to the homepage
@@ -202,6 +212,19 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 		$field->description = $aDesc;
 		$field->columnWidth = $aWidth;
 		if(empty($aValue)) $field->collapsed = Inputfield::collapsedYes;
+		return $field;
+	}
+	
+	
+	private static function _createInputfieldPageListSelectMultiple($ipName, $ipTitle, $ipValue='', $ipDesc=''){
+		$field = wire('modules')->get("InputfieldPageListSelectMultiple");
+		$field->name = $ipName;
+		$field->label = $ipTitle;
+		$field->required = false;
+		$field->description = $ipDesc;
+		$field->attr('value', $ipValue);
+		$field->set('unselectLabel', 'Unselect'); 
+		if($ipValue == 0) $field->collapsed = Inputfield::collapsedYes;
 		return $field;
 	}
 }
