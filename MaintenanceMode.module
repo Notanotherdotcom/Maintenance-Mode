@@ -85,7 +85,7 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 					'type'=>"_createInputfieldURL"),
 			'allowPages' => array(
 					'label'=>"Allowed Pages",
-					'desc'=>"These pages will allways be accessible in maintenance mode",
+					'desc'=>"These pages will always be accessible in maintenance mode",
 					'type'=>"_createInputfieldPageListSelectMultiple")
 		);
 		// Now use $data and $fieldsModel loop to create all checkboxes
