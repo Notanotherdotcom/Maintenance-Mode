@@ -68,30 +68,36 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 		// Populate the $fieldsModel with data for each checkbox
 		$fieldsModel = array(
 			'inMaintenance' => array(
-					'label'=>"Put site into maintenance mode?",
-					'desc'=>"Will redirect any visitors who are not logged in to your site to the login page with an appropriate message.",
-					'type'=>"_createCheckbox"),
+				'label' => "Put site into maintenance mode?",
+				'desc' => "Will redirect any visitors who are not logged in to your site to the login page with an appropriate message.",
+				'type' => array(__CLASS__, '_createCheckbox')
+			),
 			'bypassRoles' => array(
-					'label'=>"Allow specific roles to bypass maintenance mode",
-					'desc'=>"Optionally allow certain user roles eg. site editors/staff to see the side whilst in maintenance mode (superuser will always be allowed regardless of this setting)",
-					'type'=>"_createInputfieldASMSelect"),
+				'label' => "Allow specific roles to bypass maintenance mode",
+				'desc' => "Optionally allow certain user roles eg. site editors/staff to see the side whilst in maintenance mode (superuser will always be allowed regardless of this setting)",
+				'type' => array(__CLASS__, '_createInputfieldASMSelect')
+			),
 			'showPage' => array(
-					'label'=>"Redirect to another page instead of the login page?",
-					'desc'=>"Alternatively shows a specific page instead of the login page - for added security.",
-					'type'=>"_createInputfieldPageListSelect"),
+				'label' => "Redirect to another page instead of the login page?",
+				'desc' => "Alternatively shows a specific page instead of the login page - for added security.",
+				'type' => array(__CLASS__, '_createInputfieldPageListSelect')
+			),
 			'showURL' => array(
-					'label'=>"Redirect to another URL?",
-					'desc'=>"Allows you to send visitors who are not logged in to another URL including other sites.",
-					'type'=>"_createInputfieldURL"),
+				'label' => "Redirect to another URL?",
+				'desc' => "Allows you to send visitors who are not logged in to another URL including other sites.",
+				'type' => array(__CLASS__, '_createInputfieldURL')
+			),
 			'allowPages' => array(
-					'label'=>"Allowed Pages",
-					'desc'=>"These pages will always be accessible in maintenance mode",
-					'type'=>"_createInputfieldPageListSelectMultiple")
+				'label' => "Allowed Pages",
+				'desc' => "These pages will always be accessible in maintenance mode",
+				'type' => array(__CLASS__, '_createInputfieldPageListSelectMultiple')
+			)
 		);
+
 		// Now use $data and $fieldsModel loop to create all checkboxes
 		foreach ($fieldsModel as $f=>$fM){
 			$fields->add(
-				self::$fM['type']($f, $fM['label'], $data[$f], $fM['desc'])
+				$fM['type']($f, $fM['label'], $data[$f], $fM['desc'])
 			);
 		}
 		return $fields;
