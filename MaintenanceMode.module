@@ -10,7 +10,7 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 			'title' => 'Maintenance Mode',
 			'summary' => 'Allows you to put your site into maintenance mode so that users who are not logged in are taken to the login screen and a message is displayed accordingly.',
 			'href' => 'http://processwire.com/talk/index.php/topic,431.0.html',
-			'version' => 107,
+			'version' => 108,
 			'permanent' => false,
 			'autoload' => true,
 			'singular' => true,
@@ -91,7 +91,7 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 		// Now use $data and $fieldsModel loop to create all checkboxes
 		foreach ($fieldsModel as $f=>$fM){
 			$fields->add(
-				self::$fM['type']($f, $fM['label'], $data[$f], $fM['desc'])
+				call_user_func(array('self', $fM['type']), $f, $fM['label'], $data[$f], $fM['desc'])
 			);
 		}
 		return $fields;
@@ -228,3 +228,4 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 		return $field;
 	}
 }
+
