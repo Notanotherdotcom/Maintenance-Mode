@@ -1,253 +1,275 @@
 <?php
 
-class MaintenanceMode extends WireData implements Module, ConfigurableModule {
+class MaintenanceMode extends WireData implements Module, ConfigurableModule
+{
 
-	/**
-	 * Basic information about module
-	 */
-	public static function getModuleInfo() {
-		return array(
-			'title' => 'Maintenance Mode',
-			'summary' => 'Allows you to put your site into maintenance mode so that users who are not logged in are taken to the login screen and a message is displayed accordingly.',
-			'href' => 'http://processwire.com/talk/index.php/topic,431.0.html',
-			'version' => 109,
-			'permanent' => false,
-			'autoload' => true,
-			'singular' => true,
-		);
-	}
+    /**
+     * Basic information about module
+     */
+    public static function getModuleInfo()
+    {
+        return array(
+            'title' => 'Maintenance Mode',
+            'summary' => 'Allows you to put your site into maintenance mode so that users who are not logged in are taken to the login screen and a message is displayed accordingly.',
+            'href' => 'http://processwire.com/talk/index.php/topic,431.0.html',
+            'version' => 110,
+            'permanent' => false,
+            'autoload' => true,
+            'singular' => true,
+        );
+    }
 
-	/**
-	 * Default configuration for module
-	 *
-	 * This is based on Ryan's examples [used also in @apeisa's AdminBar, for instance]
-	 */
-	static public function getDefaultData() {
-		return array(
-			'inMaintenance' => 0,
-			'showPage' => 0,
-			'showURL' => '',
-			'bypassRoles' => '',
-			'allowPages' => 0,
-			'showFrontendNotice' => 1
-		);
-	}
+    /**
+     * Default configuration for module
+     *
+     * This is based on Ryan's examples [used also in @apeisa's AdminBar, for instance]
+     */
+    static public function getDefaultData()
+    {
+        return array(
+            'inMaintenance' => 0,
+            'showPage' => 0,
+            'showURL' => '',
+            'bypassRoles' => '',
+            'allowPages' => 0,
+            'showFrontendNotice' => 1
+        );
+    }
 
-	/**
-	 * Populate the default config data
-	 *
-	 */
-	public function __construct() {
-	   foreach(self::getDefaultData() as $key => $value) {
-		   $this->$key = $value;
-	   }
-	}
+    /**
+     * Populate the default config data
+     *
+     */
+    public function __construct()
+    {
+        foreach (self::getDefaultData() as $key => $value) {
+            $this->$key = $value;
+        }
+    }
 
-	/**
-	 * Initialize the module and setup hooks
-	 */
-	public function init() {
-		// hook before the page has been loaded to see if we're in maintenance mode and redirect if neccessary
-		$this->addHookBefore('Page::render', $this, 'maintenanceCheck');
-		$this->addHookAfter('Page::render', $this, 'maintenanceMessage');
-	}
+    /**
+     * Initialize the module and setup hooks
+     */
+    public function init()
+    {
+        // hook before the page has been loaded to see if we're in maintenance mode and redirect if neccessary
+        $this->addHookBefore('Page::render', $this, 'maintenanceCheck');
+        $this->addHookAfter('Page::render', $this, 'maintenanceMessage');
+    }
 
-	/**
-	 * Ready hook to show admin notices
-	 */
-	public function ready() {
-		// Show persistent admin notice for maintenance mode
-		if ($this->inMaintenance) {
-			$user = $this->fuel('user');
-			$page = $this->fuel('page');
-			if ($user->isLoggedin() && $user->isSuperuser() && $page->template == 'admin') {
-				$this->warning("Site is currently in maintenance mode");
-			}
-		}
-	}
-	static public function getModuleConfigInputfields(array $data) {
+    /**
+     * Ready hook to show admin notices
+     */
+    public function ready()
+    {
+        $user = $this->fuel('user');
+        $page = $this->fuel('page');
 
-		// this is a container for fields, basically like a fieldset
-		$fields = new InputfieldWrapper();
+        if ($user->isLoggedin() && $user->isSuperuser() && $page->template == 'admin') {
+            // Show persistent admin notice for maintenance mode
+            if ($this->inMaintenance) {
+                $warning = __("Site is currently in maintenance mode");
+                if ($this->modules->isInstalled('ProCache')) {
+                    $procache = $this->modules->get('ProCache');
+                    if ($procache && $procache->cacheOn) {
+                        $warning .= '. ' . __("**Warning:** ProCache is enabled - cached pages may still be served to visitors during maintenance mode");
+                    }
+                }
+                $this->warning($warning, Notice::allowMarkdown);
+            }
+        }
+    }
 
-		// since this is a static function, we can't use $this->modules, so get them from the global wire() function
-		$modules = wire('modules');
+    static public function getModuleConfigInputfields(array $data)
+    {
 
-		// Populate $data with the default config, because if they've never configured this module before,
-		// the $data provided to this function will be empty. Or, if you add new config items in a new version,
-		// $data won't have it until they configure it. Best bet is to merge defaults with custom, where
-		// custom overwrites the defaults (array_merge).
-		
-		$data = array_merge(self::getDefaultData(), $data);
+        // this is a container for fields, basically like a fieldset
+        $fields = new InputfieldWrapper();
 
-		// Populate the $fieldsModel with data for each checkbox
-		$fieldsModel = array(
-			'inMaintenance' => array(
-					'label'=>"Put site into maintenance mode?",
-					'desc'=>"Will redirect any visitors who are not logged in to your site to the login page with an appropriate message.",
-					'type'=>"_createCheckbox"),
-			'bypassRoles' => array(
-					'label'=>"Allow specific roles to bypass maintenance mode",
-					'desc'=>"Optionally allow certain user roles eg. site editors/staff to see the side whilst in maintenance mode (superuser will always be allowed regardless of this setting)",
-					'type'=>"_createInputfieldASMSelect"),
-			'showPage' => array(
-					'label'=>"Redirect to another page instead of the login page?",
-					'desc'=>"Alternatively shows a specific page instead of the login page - for added security.",
-					'type'=>"_createInputfieldPageListSelect"),
-			'showURL' => array(
-					'label'=>"Redirect to another URL?",
-					'desc'=>"Allows you to send visitors who are not logged in to another URL including other sites.",
-					'type'=>"_createInputfieldURL"),
-			'allowPages' => array(
-					'label'=>"Allowed Pages",
-					'desc'=>"These pages will always be accessible in maintenance mode",
-					'type'=>"_createInputfieldPageListSelectMultiple"),
-			'showFrontendNotice' => array(
-					'label'=>"Show frontend maintenance notice?",
-					'desc'=>"Display a maintenance mode notice on the frontend for logged-in superusers",
-					'type'=>"_createCheckbox")
-		);
-		// Now use $data and $fieldsModel loop to create all checkboxes
-		foreach ($fieldsModel as $f=>$fM){
-			$fields->add(
-				call_user_func(array('self', $fM['type']), $f, $fM['label'], $data[$f], $fM['desc'])
-			);
-		}
-		return $fields;
-	}
+        // since this is a static function, we can't use $this->modules, so get them from the global wire() function
+        $modules = wire('modules');
 
-	/**
-	 * Checks if we're in maintenance mode and performs any neccessary redirects
-	 *
-	 * @param HookEvent $event
-	 */
-	public function maintenanceCheck(HookEvent $event) {
-		$page = $event->object;
-		$user = $this->fuel('user');
-		// If we're in maintenance mode
-		if ($this->inMaintenance) {
-			// Check to make sure we're not a superuser and our role isn't in the list of allowed roles to access the site in maintenance mode
-			if (!$user->isSuperuser() && !array_intersect(explode('|', $user->roles), $this->bypassRoles)) {
-				$this->message("This site is currently in maintenance mode. If you are a site administrator, you may log in below and view the site as normal.");
+        // Populate $data with the default config, because if they've never configured this module before,
+        // the $data provided to this function will be empty. Or, if you add new config items in a new version,
+        // $data won't have it until they configure it. Best bet is to merge defaults with custom, where
+        // custom overwrites the defaults (array_merge).
 
-				// Redirect only if current page is not in array of allowed pages
-				if(!in_array($page->id,$this->allowPages)) {
-					
-					// If we have a different URL to redirect to then do a temp. redirect to that URL...
-					if( $this->showURL && ($page->name != 'login') ) {
-						$this->session->redirect($this->showURL, false);
-	
-					// If we have a specific page to redirect to then do it
-					} elseif ($this->showPage && ($page->id != $this->showPage) && ($page->name != 'login')) {
-						$this->session->redirect($this->fuel('pages')->get($this->showPage)->url, false);
-	
-					// Else redirect to the login page
-					} elseif (!$this->showPage && $page->name != 'login') {
-						$this->session->redirect($this->config->urls->admin, false);
-					}
+        $data = array_merge(self::getDefaultData(), $data);
 
-				}
-			}
-		// Else if we're not in maintenance mode and we're not an administrator, make sure the maintenance page redirects to the homepage
-		} elseif (!$this->inMaintenance && $this->showPage && ($page->id == $this->showPage) && !$user->isSuperuser()) {
-			$this->session->redirect($this->config->urls->root, false);
-		}
-	}
+        // Populate the $fieldsModel with data for each checkbox
+        $fieldsModel = array(
+            'inMaintenance' => array(
+                'label' => "Put site into maintenance mode?",
+                'desc' => "Will redirect any visitors who are not logged in to your site to the login page with an appropriate message.",
+                'type' => "_createCheckbox"),
+            'bypassRoles' => array(
+                'label' => "Allow specific roles to bypass maintenance mode",
+                'desc' => "Optionally allow certain user roles eg. site editors/staff to see the side whilst in maintenance mode (superuser will always be allowed regardless of this setting)",
+                'type' => "_createInputfieldASMSelect"),
+            'showPage' => array(
+                'label' => "Redirect to another page instead of the login page?",
+                'desc' => "Alternatively shows a specific page instead of the login page - for added security.",
+                'type' => "_createInputfieldPageListSelect"),
+            'showURL' => array(
+                'label' => "Redirect to another URL?",
+                'desc' => "Allows you to send visitors who are not logged in to another URL including other sites.",
+                'type' => "_createInputfieldURL"),
+            'allowPages' => array(
+                'label' => "Allowed Pages",
+                'desc' => "These pages will always be accessible in maintenance mode",
+                'type' => "_createInputfieldPageListSelectMultiple"),
+            'showFrontendNotice' => array(
+                'label' => "Show frontend maintenance notice?",
+                'desc' => "Display a maintenance mode notice on the frontend for logged-in superusers",
+                'type' => "_createCheckbox")
+        );
+        // Now use $data and $fieldsModel loop to create all checkboxes
+        foreach ($fieldsModel as $f => $fM) {
+            $fields->add(
+                call_user_func(array('self', $fM['type']), $f, $fM['label'], $data[$f], $fM['desc'])
+            );
+        }
+        return $fields;
+    }
 
-	public function maintenanceMessage(HookEvent $event){
-		if ($this->inMaintenance && $this->showFrontendNotice) {
-			$user = $this->fuel('user');
-			if ($user->isLoggedin() && $user->isSuperuser()) {
-				$page = $event->object;
-				// Show notice on frontend if enabled
-				if($page->template != 'admin') {
-					$out = $event->return;
-					// Check to see if the edit link is visible (it is in the default template at least when viewing pages in the front-end). If so, move message to the right of it.
-					$indent = strpos($out, 'editpage') !== false ? '60px;' : '0';
-					$code = "<div style='font-family: Arial; font-size: 12px; padding: 5px 6px; line-height: 14px; margin-left: {$indent}; background-color: #87A71B; color: #fff; z-index:99999; position: fixed; text-align: center;'>Site is in maintenance mode</div>";
-					$out = preg_replace('/(<body[^>]*>)/i', '$1' . $code, $out);
-					$event->return = $out;
-				}
-			}
-		}
-	}
+    /**
+     * Checks if we're in maintenance mode and performs any neccessary redirects
+     *
+     * @param HookEvent $event
+     */
+    public function maintenanceCheck(HookEvent $event)
+    {
+        $page = $event->object;
+        $user = $this->fuel('user');
+        // If we're in maintenance mode
+        if ($this->inMaintenance) {
+            // Check to make sure we're not a superuser and our role isn't in the list of allowed roles to access the site in maintenance mode
+            if (!$user->isSuperuser() && !array_intersect(explode('|', $user->roles), $this->bypassRoles)) {
+                $this->message("This site is currently in maintenance mode. If you are a site administrator, you may log in below and view the site as normal.");
 
-	/**
-	 * @param string $chName – name of the field this ties to
-	 * @param string $chTitle – title of the field
-	 * @param boolean $chChecked – is the checkbox checked? (default: true)
-	 * @param string $chDesc – description (KISS) (default: empty)
-	 * @return InputfieldCheckbox – created checkbox
-	 */
-	private static function _createCheckbox($chName, $chTitle, $chChecked=true, $chDesc=''){
-		$field = wire('modules')->get("InputfieldCheckbox");
-		$field->name = $chName;
-		$field->label = $chTitle;
-		$field->description = $chDesc;
-		$field->value = 1;
-		$field->attr('checked', $chChecked ? 'checked':'');
-		return $field;
-	}
+                // Redirect only if current page is not in array of allowed pages
+                if (!in_array($page->id, $this->allowPages)) {
 
-	/**
-	 * @param string $ipName – name of the field this ties to
-	 * @param string $ipTitle – title of the field
-	 * @param boolean $ipValue – the value of the field (default: empty, i.e. no page selected)
-	 * @param string $ipDesc – description (KISS) (default: empty)
-	 * @return InputfieldPageListSelect – created page list select
-	 */	
-	private static function _createInputfieldPageListSelect($ipName, $ipTitle, $ipValue='', $ipDesc=''){
-		$field = wire('modules')->get("InputfieldPageListSelect");
-		$field->name = $ipName;
-		$field->label = $ipTitle;
-		$field->required = false;
-		$field->description = $ipDesc;
-		$field->attr('value', $ipValue);
-		$field->set('unselectLabel', 'Unselect'); 
-		if($ipValue == 0) $field->collapsed = Inputfield::collapsedYes;
-		return $field;
-	}
+                    // If we have a different URL to redirect to then do a temp. redirect to that URL...
+                    if ($this->showURL && ($page->name != 'login')) {
+                        $this->session->redirect($this->showURL, false);
 
-	private static function _createInputfieldURL( $name, $title, $value='', $desc='' )
-	{
-		$field = wire('modules')->get("InputfieldURL");
-		$field->name = $name;
-		$field->label = $title;
-		$field->required = false;
-		$field->attr('value', $value);
-		$field->description = $desc;
-		$field->notes = "Example: http://another.place.com/index.html";
-		if(!(int) ini_get('allow_url_fopen')) $field->error("Your PHP doesn't have 'allow_url_fopen' enabled, so the redirect to external URL option won't work.");
-		if( '' === $value ) $field->collapsed = Inputfield::collapsedYes;
-		return $field;
-	}
-	
-	private static function _createInputfieldASMSelect($aName, $aTitle, $aValue, $aDesc='', $aOptions='', $aNotes='', $aWidth=100) {
-		if(!isset($aValue) || !is_array($aValue)) $aValue = ''; 
-		$modules = Wire::getFuel('modules');
-		$field = $modules->get("InputfieldAsmSelect");
-		$field->attr('name', $aName);
-		foreach(wire('roles') as $role) {
-			$field->addOption($role->id, $role->name); 
-		}
-		$field->attr('value', $aValue); 
-		$field->label = $aTitle;
-		$field->description = $aDesc;
-		$field->columnWidth = $aWidth;
-		if(empty($aValue)) $field->collapsed = Inputfield::collapsedYes;
-		return $field;
-	}
-	
-	
-	private static function _createInputfieldPageListSelectMultiple($ipName, $ipTitle, $ipValue='', $ipDesc=''){
-		$field = wire('modules')->get("InputfieldPageListSelectMultiple");
-		$field->name = $ipName;
-		$field->label = $ipTitle;
-		$field->required = false;
-		$field->description = $ipDesc;
-		$field->attr('value', $ipValue);
-		$field->set('unselectLabel', 'Unselect'); 
-		if($ipValue == 0) $field->collapsed = Inputfield::collapsedYes;
-		return $field;
-	}
+                        // If we have a specific page to redirect to then do it
+                    } elseif ($this->showPage && ($page->id != $this->showPage) && ($page->name != 'login')) {
+                        $this->session->redirect($this->fuel('pages')->get($this->showPage)->url, false);
+
+                        // Else redirect to the login page
+                    } elseif (!$this->showPage && $page->name != 'login') {
+                        $this->session->redirect($this->config->urls->admin, false);
+                    }
+
+                }
+            }
+            // Else if we're not in maintenance mode and we're not an administrator, make sure the maintenance page redirects to the homepage
+        } elseif (!$this->inMaintenance && $this->showPage && ($page->id == $this->showPage) && !$user->isSuperuser()) {
+            $this->session->redirect($this->config->urls->root, false);
+        }
+    }
+
+    public function maintenanceMessage(HookEvent $event)
+    {
+        if ($this->inMaintenance && $this->showFrontendNotice) {
+            $user = $this->fuel('user');
+            if ($user->isLoggedin() && $user->isSuperuser()) {
+                $page = $event->object;
+                // Show notice on frontend if enabled
+                if ($page->template != 'admin') {
+                    $out = $event->return;
+                    // Check to see if the edit link is visible (it is in the default template at least when viewing pages in the front-end). If so, move message to the right of it.
+                    $indent = strpos($out, 'editpage') !== false ? '60px;' : '0';
+                    $code = "<div style='font-family: Arial; font-size: 12px; padding: 5px 6px; line-height: 14px; margin-left: {$indent}; background-color: #87A71B; color: #fff; z-index:99999; position: fixed; text-align: center;'>Site is in maintenance mode</div>";
+                    $out = preg_replace('/(<body[^>]*>)/i', '$1' . $code, $out);
+                    $event->return = $out;
+                }
+            }
+        }
+    }
+
+    /**
+     * @param string $chName – name of the field this ties to
+     * @param string $chTitle – title of the field
+     * @param boolean $chChecked – is the checkbox checked? (default: true)
+     * @param string $chDesc – description (KISS) (default: empty)
+     * @return InputfieldCheckbox – created checkbox
+     */
+    private static function _createCheckbox($chName, $chTitle, $chChecked = true, $chDesc = '')
+    {
+        $field = wire('modules')->get("InputfieldCheckbox");
+        $field->name = $chName;
+        $field->label = $chTitle;
+        $field->description = $chDesc;
+        $field->value = 1;
+        $field->attr('checked', $chChecked ? 'checked' : '');
+        return $field;
+    }
+
+    /**
+     * @param string $ipName – name of the field this ties to
+     * @param string $ipTitle – title of the field
+     * @param boolean $ipValue – the value of the field (default: empty, i.e. no page selected)
+     * @param string $ipDesc – description (KISS) (default: empty)
+     * @return InputfieldPageListSelect – created page list select
+     */
+    private static function _createInputfieldPageListSelect($ipName, $ipTitle, $ipValue = '', $ipDesc = '')
+    {
+        $field = wire('modules')->get("InputfieldPageListSelect");
+        $field->name = $ipName;
+        $field->label = $ipTitle;
+        $field->required = false;
+        $field->description = $ipDesc;
+        $field->attr('value', $ipValue);
+        $field->set('unselectLabel', 'Unselect');
+        if ($ipValue == 0) $field->collapsed = Inputfield::collapsedYes;
+        return $field;
+    }
+
+    private static function _createInputfieldURL($name, $title, $value = '', $desc = '')
+    {
+        $field = wire('modules')->get("InputfieldURL");
+        $field->name = $name;
+        $field->label = $title;
+        $field->required = false;
+        $field->attr('value', $value);
+        $field->description = $desc;
+        $field->notes = "Example: http://another.place.com/index.html";
+        if (!(int)ini_get('allow_url_fopen')) $field->error("Your PHP doesn't have 'allow_url_fopen' enabled, so the redirect to external URL option won't work.");
+        if ('' === $value) $field->collapsed = Inputfield::collapsedYes;
+        return $field;
+    }
+
+    private static function _createInputfieldASMSelect($aName, $aTitle, $aValue, $aDesc = '', $aOptions = '', $aNotes = '', $aWidth = 100)
+    {
+        if (!isset($aValue) || !is_array($aValue)) $aValue = '';
+        $modules = Wire::getFuel('modules');
+        $field = $modules->get("InputfieldAsmSelect");
+        $field->attr('name', $aName);
+        foreach (wire('roles') as $role) {
+            $field->addOption($role->id, $role->name);
+        }
+        $field->attr('value', $aValue);
+        $field->label = $aTitle;
+        $field->description = $aDesc;
+        $field->columnWidth = $aWidth;
+        if (empty($aValue)) $field->collapsed = Inputfield::collapsedYes;
+        return $field;
+    }
+
+
+    private static function _createInputfieldPageListSelectMultiple($ipName, $ipTitle, $ipValue = '', $ipDesc = '')
+    {
+        $field = wire('modules')->get("InputfieldPageListSelectMultiple");
+        $field->name = $ipName;
+        $field->label = $ipTitle;
+        $field->required = false;
+        $field->description = $ipDesc;
+        $field->attr('value', $ipValue);
+        $field->set('unselectLabel', 'Unselect');
+        if ($ipValue == 0) $field->collapsed = Inputfield::collapsedYes;
+        return $field;
+    }
 }
