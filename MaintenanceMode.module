@@ -10,7 +10,7 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 			'title' => 'Maintenance Mode',
 			'summary' => 'Allows you to put your site into maintenance mode so that users who are not logged in are taken to the login screen and a message is displayed accordingly.',
 			'href' => 'http://processwire.com/talk/index.php/topic,431.0.html',
-			'version' => 108,
+			'version' => 109,
 			'permanent' => false,
 			'autoload' => true,
 			'singular' => true,
@@ -28,7 +28,8 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 			'showPage' => 0,
 			'showURL' => '',
 			'bypassRoles' => '',
-			'allowPages' => 0
+			'allowPages' => 0,
+			'showFrontendNotice' => 1
 		);
 	}
 
@@ -49,6 +50,20 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 		// hook before the page has been loaded to see if we're in maintenance mode and redirect if neccessary
 		$this->addHookBefore('Page::render', $this, 'maintenanceCheck');
 		$this->addHookAfter('Page::render', $this, 'maintenanceMessage');
+	}
+
+	/**
+	 * Ready hook to show admin notices
+	 */
+	public function ready() {
+		// Show persistent admin notice for maintenance mode
+		if ($this->inMaintenance) {
+			$user = $this->fuel('user');
+			$page = $this->fuel('page');
+			if ($user->isLoggedin() && $user->isSuperuser() && $page->template == 'admin') {
+				$this->warning("Site is currently in maintenance mode");
+			}
+		}
 	}
 	static public function getModuleConfigInputfields(array $data) {
 
@@ -86,7 +101,11 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 			'allowPages' => array(
 					'label'=>"Allowed Pages",
 					'desc'=>"These pages will always be accessible in maintenance mode",
-					'type'=>"_createInputfieldPageListSelectMultiple")
+					'type'=>"_createInputfieldPageListSelectMultiple"),
+			'showFrontendNotice' => array(
+					'label'=>"Show frontend maintenance notice?",
+					'desc'=>"Display a maintenance mode notice on the frontend for logged-in superusers",
+					'type'=>"_createCheckbox")
 		);
 		// Now use $data and $fieldsModel loop to create all checkboxes
 		foreach ($fieldsModel as $f=>$fM){
@@ -135,16 +154,20 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 		}
 	}
 
-	public function maintenanceMessage(HookEvent $event){ 
-		if ($this->inMaintenance) {
+	public function maintenanceMessage(HookEvent $event){
+		if ($this->inMaintenance && $this->showFrontendNotice) {
 			$user = $this->fuel('user');
 			if ($user->isLoggedin() && $user->isSuperuser()) {
-				$out = $event->return;
-				// Check to see if the edit link is visible (it is in the default template at least when viewing pages in the front-end). If so, move message to the right of it.
-				$indent = strpos($out, 'editpage') !== false ? '60px;' : '0';
-				$code = "<div style='font-family: Arial; font-size: 12px; padding: 5px 6px; line-height: 14px; margin-left: {$indent}; background-color: #87A71B; color: #fff; z-index:9999; position: fixed; text-align: center;'>Site is in maintenance mode</div>";
-				$out = preg_replace('/(<body[^>]*>)/i', '$1' . $code, $out); 
-				$event->return = $out;   
+				$page = $event->object;
+				// Show notice on frontend if enabled
+				if($page->template != 'admin') {
+					$out = $event->return;
+					// Check to see if the edit link is visible (it is in the default template at least when viewing pages in the front-end). If so, move message to the right of it.
+					$indent = strpos($out, 'editpage') !== false ? '60px;' : '0';
+					$code = "<div style='font-family: Arial; font-size: 12px; padding: 5px 6px; line-height: 14px; margin-left: {$indent}; background-color: #87A71B; color: #fff; z-index:99999; position: fixed; text-align: center;'>Site is in maintenance mode</div>";
+					$out = preg_replace('/(<body[^>]*>)/i', '$1' . $code, $out);
+					$event->return = $out;
+				}
 			}
 		}
 	}
@@ -228,4 +251,3 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule {
 		return $field;
 	}
 }
-
