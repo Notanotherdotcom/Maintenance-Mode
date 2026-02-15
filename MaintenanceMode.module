@@ -11,8 +11,8 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule
         return array(
             'title' => 'Maintenance Mode',
             'summary' => 'Allows you to put your site into maintenance mode so that users who are not logged in are taken to the login screen and a message is displayed accordingly.',
-            'href' => 'http://processwire.com/talk/index.php/topic,431.0.html',
-            'version' => 110,
+            'href' => 'https://processwire.com/talk/topic/382-module-maintenance-mode/',
+            'version' => 111,
             'permanent' => false,
             'autoload' => true,
             'singular' => true,
@@ -65,9 +65,15 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule
         $user = $this->fuel('user');
         $page = $this->fuel('page');
 
-        if ($user->isLoggedin() && $user->isSuperuser() && $page->template == 'admin') {
+        if ($user->isLoggedin() && $user->isSuperuser() && $page->template == 'admin' && !$this->config->ajax && !$this->input->requestMethod('POST')) {
             // Show persistent admin notice for maintenance mode
             if ($this->inMaintenance) {
+                // Remove any leftover maintenance warnings from session to prevent duplicates
+                foreach ($this->wire('notices') as $notice) {
+                    if ($notice instanceof NoticeWarning && $notice->class === $this->className()) {
+                        $this->wire('notices')->remove($notice);
+                    }
+                }
                 $warning = __("Site is currently in maintenance mode");
                 if ($this->modules->isInstalled('ProCache')) {
                     $procache = $this->modules->get('ProCache');
@@ -126,7 +132,7 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule
         // Now use $data and $fieldsModel loop to create all checkboxes
         foreach ($fieldsModel as $f => $fM) {
             $fields->add(
-                call_user_func(array('self', $fM['type']), $f, $fM['label'], $data[$f], $fM['desc'])
+                call_user_func(array(static::class, $fM['type']), $f, $fM['label'], $data[$f], $fM['desc'])
             );
         }
         return $fields;
@@ -273,3 +279,4 @@ class MaintenanceMode extends WireData implements Module, ConfigurableModule
         return $field;
     }
 }
+
